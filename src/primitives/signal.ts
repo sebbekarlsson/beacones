@@ -15,6 +15,8 @@ import { isProxyMap, ProxyMap } from "./proxyMap";
 export type Signal<T = any> = Beacon<T> & {
   _signal: true;
   _init: () => void;
+  _trackGet: () => void;
+  _assign: (value: T) => void;
 
   set: (value: T | Setter<T>) => T;
   get: () => T;
@@ -113,12 +115,15 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
     return next;
   };
 
-  const get = (): T => {
+  const trackGet = () => {
     const currentUpdate = GlobalBeaconScope.current.currentUpdate;
     if (currentUpdate && currentUpdate !== this) {
       currentUpdate._addDependency(sig);
     }
+  };
 
+  const get = (): T => {
+    trackGet();
     return _value;
   };
 
@@ -177,6 +182,8 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
     _dispose: dispose,
     _addDependency: addDependecy,
     _init: initialize,
+    _trackGet: trackGet,
+    _assign: assign,
     get,
     set,
     peek,
@@ -189,6 +196,30 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
 export const signal = <T = any>(init: SignalInit<T>): Signal<T> => {
   const sig = makeSignal<T>(init);
   sig._init();
+  return sig;
+};
+
+export type CreateSignalInit<T = any> = {
+  set: (value: T) => T;
+  get: () => T;
+};
+
+export const createSignal = <T = any>(init: CreateSignalInit<T>): Signal<T> => {
+  const sig = makeSignal<T>(init.get());
+
+  const oldGet = sig.get;
+  const oldSet = sig.set;
+
+  sig.get = () => {
+    oldGet();
+    return init.get();
+  };
+  
+  sig.set = (value) => {
+    const x = typeof value === 'function' ? (value as Setter<T>)(sig.peek()) : value;
+    return oldSet(init.set(x));
+  };
+
   return sig;
 };
 

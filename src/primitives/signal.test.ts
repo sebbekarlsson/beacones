@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { it } from "node:test";
-import { signal } from "./signal";
+import { createSignal, signal } from "./signal";
 
 it("Updates a derived state", () => {
   const count = signal<number>(0);
@@ -31,4 +31,81 @@ it("Tracks Map changes", () => {
   assert.equal(x.peek(), 42);
   map.peek().delete("x");
   assert.equal(x.peek(), undefined);
+});
+
+it('Custom Signal get & set works correctly', () => {
+
+  type Data = {
+    firstname: string;
+    lastname: string;
+    age: number;
+    pet: {
+      name: string;
+      age: number;
+    }
+  }
+
+  const data: Data = {
+    firstname: 'john',
+    lastname: 'doe',
+    age: 47,
+    pet: {
+      name: 'boo',
+      age: 7
+    }
+  };
+
+
+  const firstname = createSignal<string>({
+    get: () => data.firstname,
+    set: (value) => {
+      data['firstname'] = value;
+      return value;
+    } 
+  });
+
+  const lastname = createSignal<string>({
+    get: () => data.lastname,
+    set: (value) => {
+      data['lastname'] = value;
+      return value;
+    } 
+  });
+
+  const age = createSignal<number>({
+    get: () => data.age,
+    set: (value) => {
+      data['age'] = value;
+      return value;
+    } 
+  });
+
+  const ageTimesTwo = signal(() => age.get() * 2);
+  assert.equal(ageTimesTwo.peek(), data.age * 2);
+
+  const petName = createSignal<string>({
+    get: () => data.pet.name,
+    set: (value) => {
+      data.pet['name'] = value;
+      return value;
+    }
+  })
+
+
+  firstname.set('david');
+  assert.equal(data.firstname, 'david');
+  assert.equal(firstname.peek(), data.firstname);
+
+  lastname.set('kent');
+  assert.equal(data.lastname, 'kent');
+  assert.equal(lastname.peek(), data.lastname);
+
+  age.set(33);
+  assert.equal(data.age, 33);
+  assert.equal(age.peek(), data.age);
+  assert.equal(ageTimesTwo.peek(), 33 * 2);
+
+  petName.set('foo');
+  assert.equal(data.pet.name, 'foo');
+  assert.equal(petName.peek(), data.pet.name);
 });
