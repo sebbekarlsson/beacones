@@ -7,5 +7,8 @@ export var EBeaconEvent;
     EBeaconEvent["SET"] = "SET";
     EBeaconEvent["CLEAR"] = "CLEAR";
     EBeaconEvent["UPDATE"] = "UPDATE";
+    EBeaconEvent["PROXY_SET_PROP"] = "PROXY_SET_PROP";
+    EBeaconEvent["PROXY_GET_PROP"] = "PROXY_GET_PROP";
+    EBeaconEvent["PROXY_UNSET_PROP"] = "PROXY_UNSET_PROP";
 })(EBeaconEvent || (EBeaconEvent = {}));
 ;

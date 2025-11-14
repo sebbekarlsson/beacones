@@ -5,7 +5,10 @@ export declare enum EBeaconEvent {
     GET = "GET",
     SET = "SET",
     CLEAR = "CLEAR",
-    UPDATE = "UPDATE"
+    UPDATE = "UPDATE",
+    PROXY_SET_PROP = "PROXY_SET_PROP",
+    PROXY_GET_PROP = "PROXY_GET_PROP",
+    PROXY_UNSET_PROP = "PROXY_UNSET_PROP"
 }
 export type BeaconEventMap<T = unknown> = {
     [EBeaconEvent.SET_PROP]: {
@@ -41,5 +44,27 @@ export type BeaconEventMap<T = unknown> = {
         oldValue: T;
         value: T;
         key?: PropertyKey;
+    };
+    [EBeaconEvent.PROXY_GET_PROP]: {
+        eventType: EBeaconEvent.PROXY_GET_PROP;
+        value: T;
+        crumbs: PropertyKey[];
+        depth: number;
+        child: number;
+    };
+    [EBeaconEvent.PROXY_SET_PROP]: {
+        eventType: EBeaconEvent.PROXY_SET_PROP;
+        oldValue: T;
+        value: T;
+        crumbs: PropertyKey[];
+        depth: number;
+        child: number;
+    };
+    [EBeaconEvent.PROXY_UNSET_PROP]: {
+        eventType: EBeaconEvent.PROXY_UNSET_PROP;
+        oldValue: T;
+        crumbs: PropertyKey[];
+        depth: number;
+        child: number;
     };
 };

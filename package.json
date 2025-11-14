@@ -1,13 +1,14 @@
 {
   "name": "beacones",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
     "lint": "prettier ./src --write",
-    "test": "npx tsx --test --experimental-test-module-mocks \"./src/**/*.test.ts\" --report-compact --no-warnings"
+    "test": "npx tsx --test --experimental-test-module-mocks \"./src/**/*.test.ts\" --report-compact --no-warnings",
+    "test:file": "npx tsx --test --experimental-test-module-mocks --report-compact --no-warnings"
   },
   "author": "",
   "license": "ISC",

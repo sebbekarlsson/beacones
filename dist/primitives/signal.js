@@ -9,9 +9,14 @@ const makeSignal = (init) => {
     const events = new EventSystem();
     const deps = new Set();
     const cleanups = new Set();
+    const _current = { value: null };
     let _value;
     let _didUpdate = false;
     let _compute = typeof init === "function" ? init : null;
+    const setValue = (value) => {
+        _value = value;
+        _current.value = value;
+    };
     const assign = (value) => {
         if (value instanceof Map) {
             const old = _value;
@@ -48,10 +53,10 @@ const makeSignal = (init) => {
                     currentUpdate._addDependency(sig);
                 }
             }));
-            _value = proxy;
+            setValue(proxy);
         }
         else {
-            _value = value;
+            setValue(value);
         }
     };
     const initialize = () => {
@@ -137,6 +142,8 @@ const makeSignal = (init) => {
         _init: initialize,
         _trackGet: trackGet,
         _assign: assign,
+        _cleanups: cleanups,
+        _current: _current,
         get,
         set,
         peek,
@@ -158,9 +165,10 @@ export const createSignal = (init) => {
         return init.get();
     };
     sig.set = (value) => {
-        const x = typeof value === 'function' ? value(sig.peek()) : value;
+        const x = typeof value === 'function' ? value(init.peek ? init.peek() : sig.peek()) : value;
         return oldSet(init.set(x));
     };
+    sig.peek = init.peek || sig.peek;
     return sig;
 };
 export const isSignal = (x) => {

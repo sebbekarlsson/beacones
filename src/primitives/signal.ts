@@ -17,6 +17,8 @@ export type Signal<T = any> = Beacon<T> & {
   _init: () => void;
   _trackGet: () => void;
   _assign: (value: T) => void;
+  _cleanups: Set<() => void>;
+  _current: { value: T | null };
 
   set: (value: T | Setter<T>) => T;
   get: () => T;
@@ -31,10 +33,17 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
   const deps = new Set<Beacon>();
   const cleanups = new Set<() => void>();
 
+  const _current: { value: T | null } = { value: null };
   let _value!: T;
   let _didUpdate: boolean = false;
   let _compute: Computation<T> | null =
     typeof init === "function" ? (init as Computation<T>) : null;
+
+
+  const setValue = (value: T) => {
+    _value = value;
+    _current.value = value;
+  }
 
   const assign = (value: T) => {
     if (value instanceof Map) {
@@ -84,9 +93,9 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
         }),
       );
 
-      _value = proxy as unknown as any as T;
+      setValue(proxy as unknown as any as T);
     } else {
-      _value = value;
+      setValue(value);
     }
   };
 
@@ -184,6 +193,8 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
     _init: initialize,
     _trackGet: trackGet,
     _assign: assign,
+    _cleanups: cleanups,
+    _current: _current,
     get,
     set,
     peek,
@@ -202,6 +213,7 @@ export const signal = <T = any>(init: SignalInit<T>): Signal<T> => {
 export type CreateSignalInit<T = any> = {
   set: (value: T) => T;
   get: () => T;
+  peek?: () => T;
 };
 
 export const createSignal = <T = any>(init: CreateSignalInit<T>): Signal<T> => {
@@ -216,9 +228,11 @@ export const createSignal = <T = any>(init: CreateSignalInit<T>): Signal<T> => {
   };
   
   sig.set = (value) => {
-    const x = typeof value === 'function' ? (value as Setter<T>)(sig.peek()) : value;
+    const x = typeof value === 'function' ? (value as Setter<T>)(init.peek ? init.peek() : sig.peek() ) : value;
     return oldSet(init.set(x));
   };
+
+  sig.peek = init.peek || sig.peek;
 
   return sig;
 };
