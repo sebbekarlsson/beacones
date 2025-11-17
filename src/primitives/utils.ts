@@ -92,6 +92,8 @@ export const unwrapNestedSignals = <T>(
 
     if (Array.isArray(item)) return item.map((it) => unwrap(it));
 
+    if (item instanceof Date) return item;
+
     if (typeof item === "object") {
       return Object.assign(
         {},
