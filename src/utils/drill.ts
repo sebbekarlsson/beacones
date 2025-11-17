@@ -7,6 +7,10 @@ type Dict = Record<PropertyKey, any>;
 export type Drill<T extends Dict> = {
   state: Signal<T>;
   select: <Path extends string>(path: Path) => Signal<Get<T, Path>>;
+  selectRemapped: <Path extends string, RemapFn extends (value: any) => any>(
+    path: Path,
+    remapFunc: RemapFn 
+  ) => Signal<ReturnType<RemapFn>>;
 };
 
 export const drill = <T extends Dict>(
@@ -31,8 +35,28 @@ export const drill = <T extends Dict>(
     return sig;
   };
 
+  const selectRemapped = <Path extends string, RemapFn extends (value: any) => any>(
+    path: Path,
+    remapFunc: RemapFn 
+  ): Signal<ReturnType<RemapFn>> => {
+    const old = cache.get(path);
+    if (old) return old;
+    const sig = createSignal<ReturnType<RemapFn>>({
+      get: () => remapFunc(pick(state.peek(), path)) as ReturnType<RemapFn>,
+      peek: () => remapFunc(pick(state.peek(), path)) as ReturnType<RemapFn>, 
+      set: (value) => {
+        const remapped = remapFunc(value);
+        state.set(insert(state.peek(), path, remapped));
+        return remapped;
+      },
+    });
+    cache.set(path, sig);
+    return sig;
+  };
+
   return {
     state,
     select,
+    selectRemapped
   };
 };

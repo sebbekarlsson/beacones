@@ -237,7 +237,7 @@ export const createSignal = <T = any>(init: CreateSignalInit<T>): Signal<T> => {
   return sig;
 };
 
-export const isSignal = <T>(x: any): x is Signal<T> => {
+export const isSignal = <T, R = T extends Signal<infer K> ? K : T>(x: any): x is Signal<R> => {
   if (isNullish(x)) return false;
   if (!isBeacon(x)) return false;
   return (x as any)._signal === true;

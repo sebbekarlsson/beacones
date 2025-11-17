@@ -22,4 +22,4 @@ export type CreateSignalInit<T = any> = {
     peek?: () => T;
 };
 export declare const createSignal: <T = any>(init: CreateSignalInit<T>) => Signal<T>;
-export declare const isSignal: <T>(x: any) => x is Signal<T>;
+export declare const isSignal: <T, R = T extends Signal<infer K> ? K : T>(x: any) => x is Signal<R>;

@@ -5,3 +5,4 @@ export * from './functionTypes';
 export * from './scope';
 export * from './globalScope';
 export * from './primitives';
+export * from './utils';

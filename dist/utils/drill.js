@@ -18,8 +18,25 @@ export const drill = (initialState) => {
         cache.set(path, sig);
         return sig;
     };
+    const selectRemapped = (path, remapFunc) => {
+        const old = cache.get(path);
+        if (old)
+            return old;
+        const sig = createSignal({
+            get: () => remapFunc(pick(state.peek(), path)),
+            peek: () => remapFunc(pick(state.peek(), path)),
+            set: (value) => {
+                const remapped = remapFunc(value);
+                state.set(insert(state.peek(), path, remapped));
+                return remapped;
+            },
+        });
+        cache.set(path, sig);
+        return sig;
+    };
     return {
         state,
         select,
+        selectRemapped
     };
 };

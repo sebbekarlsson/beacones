@@ -1,16 +1,9 @@
 import { applyPatches, createPatches } from "../utils/patch";
 import { isSignal, signal, Signal } from "./signal";
 
-type Rec = Record<PropertyKey, any>;
+type Rec = Record<PropertyKey | string | number | symbol, any>;
 
-export type WithoutSignals<T> =
-  Exclude<T, undefined> extends Signal<infer K>
-    ? WithoutSignals<K>
-    : Exclude<T, undefined> extends Array<infer K>
-      ? Array<WithoutSignals<K>>
-      : Exclude<T, undefined> extends Rec
-        ? { [Prop in keyof T]: WithoutSignals<T[Prop]> }
-        : T;
+
 
 export type WithSignals<T> =
   Exclude<T, undefined> extends string
@@ -29,9 +22,29 @@ export type WithSignals<T> =
                 }>
               : Signal<T>;
 
+
+
+export type WithoutSignals<T> =
+  T extends Signal<infer U>
+    ? WithoutSignals<U>
+    : T extends Array<infer K>
+      ? Array<WithoutSignals<K>>
+    : T extends Rec
+      ? { [Prop in keyof T]: WithoutSignals<T[Prop]> }
+    : T;
+
+
+                                                      
 export type MaybeWithSignals<T> = T | WithSignals<T>;
 
 export type MaybeSignal<T> = T | Signal<T>;
+
+
+export const unref = <T, R = T extends Signal<infer K> ? K : T>(x: T, peek: boolean = false): R => {
+  if (!isSignal(x)) return x as unknown as R;
+    return (peek ? x.peek() : x.get()) as unknown as R;
+}
+
 
 export const createNestedSignals = <T>(item: T): WithSignals<T> => {
   const an = item as any;
@@ -129,6 +142,8 @@ export const traverseNestedSignals = <T>(
   return traverse(item, []);
 };
 
+const isTraversable = (x: unknown): boolean => x !== null && (typeof x === 'object' || Array.isArray(x));
+
 export const observeNestedSignals = <T>(
   item: T,
   callback: (ctx: {
@@ -138,13 +153,20 @@ export const observeNestedSignals = <T>(
   }) => void | Promise<void>,
 ): (() => void) => {
   const cleanups = new Set<() => void>();
+  const seen = new WeakSet<any>();
 
   traverseNestedSignals(item, (sig, crumbs) => {
-    cleanups.add(
-      sig.subscribe((value, prev) => {
-        callback({ value, prev, crumbs });
-      }),
-    );
+    const initial = sig.peek();
+    if (isTraversable(initial)) {
+      seen.add(initial);
+    }
+    cleanups.add(sig.subscribe((value, prev) => {
+      callback({ value, prev, crumbs });
+      if (isTraversable(value) && !seen.has(value)) {
+        cleanups.add(observeNestedSignals(value,  callback));
+        seen.add(value);
+      }
+    }));
   }, { peek: true });
 
   return () => {

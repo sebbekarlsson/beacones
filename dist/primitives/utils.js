@@ -1,5 +1,10 @@
 import { applyPatches, createPatches } from "../utils/patch";
 import { isSignal, signal } from "./signal";
+export const unref = (x, peek = false) => {
+    if (!isSignal(x))
+        return x;
+    return (peek ? x.peek() : x.get());
+};
 export const createNestedSignals = (item) => {
     const an = item;
     if (typeof an === "number" ||
@@ -62,11 +67,21 @@ export const traverseNestedSignals = (item, callback, options = {}) => {
     };
     return traverse(item, []);
 };
+const isTraversable = (x) => x !== null && (typeof x === 'object' || Array.isArray(x));
 export const observeNestedSignals = (item, callback) => {
     const cleanups = new Set();
+    const seen = new WeakSet();
     traverseNestedSignals(item, (sig, crumbs) => {
+        const initial = sig.peek();
+        if (isTraversable(initial)) {
+            seen.add(initial);
+        }
         cleanups.add(sig.subscribe((value, prev) => {
             callback({ value, prev, crumbs });
+            if (isTraversable(value) && !seen.has(value)) {
+                cleanups.add(observeNestedSignals(value, callback));
+                seen.add(value);
+            }
         }));
     }, { peek: true });
     return () => {
