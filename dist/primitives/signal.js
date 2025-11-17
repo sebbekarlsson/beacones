@@ -67,6 +67,10 @@ const makeSignal = (init) => {
             assign(init);
         }
     };
+    const lay = (value) => {
+        assign(value);
+        return value;
+    };
     const set = (value) => {
         const oldValue = _value;
         const next = typeof value === "function" ? value(oldValue) : value;
@@ -83,7 +87,7 @@ const makeSignal = (init) => {
     };
     const trackGet = () => {
         const currentUpdate = GlobalBeaconScope.current.currentUpdate;
-        if (currentUpdate && currentUpdate !== this) {
+        if (currentUpdate && currentUpdate !== sig) {
             currentUpdate._addDependency(sig);
         }
     };
@@ -146,6 +150,7 @@ const makeSignal = (init) => {
         _current: _current,
         get,
         set,
+        lay,
         peek,
         subscribe,
     };
@@ -157,15 +162,11 @@ export const signal = (init) => {
     return sig;
 };
 export const createSignal = (init) => {
-    const sig = makeSignal(init.get());
-    const oldGet = sig.get;
+    const sig = makeSignal(init.get);
+    sig._init();
     const oldSet = sig.set;
-    sig.get = () => {
-        oldGet();
-        return init.get();
-    };
     sig.set = (value) => {
-        const x = typeof value === 'function' ? value(init.peek ? init.peek() : sig.peek()) : value;
+        const x = typeof value === 'function' ? value(sig.peek()) : value;
         return oldSet(init.set(x));
     };
     sig.peek = init.peek || sig.peek;

@@ -1,3 +1,4 @@
+import { isPlainObject } from "../utils/is";
 import { applyPatches, createPatches } from "../utils/patch";
 import { isSignal, signal, Signal } from "./signal";
 
@@ -49,6 +50,8 @@ export const unref = <T, R = T extends Signal<infer K> ? K : T>(x: T, peek: bool
 export const createNestedSignals = <T>(item: T): WithSignals<T> => {
   const an = item as any;
 
+  if (isSignal(an)) return an as WithSignals<T>;
+
   if (
     typeof an === "number" ||
     typeof an === "string" ||
@@ -63,7 +66,7 @@ export const createNestedSignals = <T>(item: T): WithSignals<T> => {
   if (Array.isArray(an))
     return signal(an.map((it) => createNestedSignals(it))) as WithSignals<T>;
 
-  if (typeof an === "object") {
+  if (typeof an === "object" && isPlainObject(an)) {
     return signal(
       Object.assign(
         {},
@@ -73,6 +76,7 @@ export const createNestedSignals = <T>(item: T): WithSignals<T> => {
       ),
     ) as WithSignals<T>;
   }
+
 
   return signal(an) as WithSignals<T>;
 };
@@ -92,9 +96,7 @@ export const unwrapNestedSignals = <T>(
 
     if (Array.isArray(item)) return item.map((it) => unwrap(it));
 
-    if (item instanceof Date) return item;
-
-    if (typeof item === "object") {
+    if (typeof item === "object" && isPlainObject(item)) {
       return Object.assign(
         {},
         ...Object.entries(item).map(([k, v]) => ({

@@ -1,3 +1,4 @@
+import { isPlainObject } from "../utils/is";
 import { applyPatches, createPatches } from "../utils/patch";
 import { isSignal, signal } from "./signal";
 export const unref = (x, peek = false) => {
@@ -7,6 +8,8 @@ export const unref = (x, peek = false) => {
 };
 export const createNestedSignals = (item) => {
     const an = item;
+    if (isSignal(an))
+        return an;
     if (typeof an === "number" ||
         typeof an === "string" ||
         typeof an === "undefined" ||
@@ -17,7 +20,7 @@ export const createNestedSignals = (item) => {
     }
     if (Array.isArray(an))
         return signal(an.map((it) => createNestedSignals(it)));
-    if (typeof an === "object") {
+    if (typeof an === "object" && isPlainObject(an)) {
         return signal(Object.assign({}, ...Object.entries(an).map(([k, v]) => ({
             [k]: createNestedSignals(v),
         }))));
@@ -35,9 +38,7 @@ export const unwrapNestedSignals = (item, options = {}) => {
             return unwrap(get(item));
         if (Array.isArray(item))
             return item.map((it) => unwrap(it));
-        if (item instanceof Date)
-            return item;
-        if (typeof item === "object") {
+        if (typeof item === "object" && isPlainObject(item)) {
             return Object.assign({}, ...Object.entries(item).map(([k, v]) => ({
                 [k]: unwrap(v),
             })));

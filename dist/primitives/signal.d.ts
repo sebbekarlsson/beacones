@@ -4,12 +4,13 @@ export type Signal<T = any> = Beacon<T> & {
     _signal: true;
     _init: () => void;
     _trackGet: () => void;
-    _assign: (value: T) => void;
     _cleanups: Set<() => void>;
     _current: {
         value: T | null;
     };
+    _assign: (value: T) => void;
     set: (value: T | Setter<T>) => T;
+    lay: (value: T) => T;
     get: () => T;
     peek: () => T;
     subscribe: (sub: ValueChangeSubscriptor<T>) => Unsubscribe;

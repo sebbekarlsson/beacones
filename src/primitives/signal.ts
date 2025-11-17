@@ -16,17 +16,19 @@ export type Signal<T = any> = Beacon<T> & {
   _signal: true;
   _init: () => void;
   _trackGet: () => void;
-  _assign: (value: T) => void;
   _cleanups: Set<() => void>;
   _current: { value: T | null };
+  _assign: (value: T) => void;
 
   set: (value: T | Setter<T>) => T;
+  lay: (value: T) => T;
   get: () => T;
   peek: () => T;
   subscribe: (sub: ValueChangeSubscriptor<T>) => Unsubscribe;
 };
 
 export type SignalInit<T = any> = Computation<T> | T;
+
 
 const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
   const events = new EventSystem<BeaconEventMap<T>>();
@@ -107,6 +109,11 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
     }
   };
 
+  const lay = (value: T): T => {
+    assign(value);
+    return value;
+  }
+
   const set = (value: T | Setter<T>): T => {
     const oldValue = _value;
     const next =
@@ -126,7 +133,7 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
 
   const trackGet = () => {
     const currentUpdate = GlobalBeaconScope.current.currentUpdate;
-    if (currentUpdate && currentUpdate !== this) {
+    if (currentUpdate && currentUpdate !== sig) {
       currentUpdate._addDependency(sig);
     }
   };
@@ -197,6 +204,7 @@ const makeSignal = <T = any>(init: SignalInit<T>): Signal<T> => {
     _current: _current,
     get,
     set,
+    lay,
     peek,
     subscribe,
   };
@@ -217,18 +225,13 @@ export type CreateSignalInit<T = any> = {
 };
 
 export const createSignal = <T = any>(init: CreateSignalInit<T>): Signal<T> => {
-  const sig = makeSignal<T>(init.get());
+  const sig = makeSignal<T>(init.get);
+  sig._init();
 
-  const oldGet = sig.get;
   const oldSet = sig.set;
 
-  sig.get = () => {
-    oldGet();
-    return init.get();
-  };
-  
   sig.set = (value) => {
-    const x = typeof value === 'function' ? (value as Setter<T>)(init.peek ? init.peek() : sig.peek() ) : value;
+    const x = typeof value === 'function' ? (value as Setter<T>)(sig.peek()) : value;
     return oldSet(init.set(x));
   };
 
