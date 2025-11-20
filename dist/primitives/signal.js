@@ -161,6 +161,15 @@ export const signal = (init) => {
     sig._init();
     return sig;
 };
+export const lazySignal = (initialValue, compute) => {
+    const tmp = makeSignal(compute);
+    tmp._init();
+    const sig = makeSignal(compute);
+    sig._assign(initialValue);
+    tmp._deps.forEach(dep => sig._addDependency(dep));
+    tmp._dispose();
+    return sig;
+};
 export const createSignal = (init) => {
     const sig = makeSignal(init.get);
     sig._init();

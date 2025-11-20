@@ -8,4 +8,5 @@ export type GetPath<T> = T extends `${infer Key}.${infer Rest}` ? [Key, ...GetPa
 export type Get<O, K> = GetWithArray<O, GetPath<K>>;
 export declare function pick<O, K extends string>(obj: O, path: K, unwrap?: (value: unknown) => any): Get<O, K>;
 export declare const insert: <T extends Record<PropertyKey, any>>(obj: T, path: string, value: any) => T;
+export declare const insertReflect: <T extends Record<PropertyKey, any>>(obj: T, path: string, value: any) => T;
 export {};

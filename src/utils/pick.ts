@@ -82,3 +82,25 @@ export const insert = <T extends Record<PropertyKey, any>>(obj: T, path: string,
 
   return copy;
 };
+
+
+export const insertReflect = <T extends Record<PropertyKey, any>>(obj: T, path: string, value: any): T => {
+  const copy  = {...obj};
+  const keys = path.split(".");
+
+  let next = copy;
+  while (keys.length > 0 && !!next) {
+    const key = keys[0];
+    if (!key) break;
+
+    if (keys.length <= 1) {
+      Reflect.set(next as any, key, value);
+      break;
+    }
+
+    keys.splice(0, 1);
+    next = next[key];
+  }
+
+  return copy;
+};

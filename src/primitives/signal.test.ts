@@ -1,6 +1,6 @@
 import assert from "node:assert";
 import { it } from "node:test";
-import { createSignal, signal } from "./signal";
+import { createSignal, lazySignal, signal } from "./signal";
 
 it("Updates a derived state", () => {
   const count = signal<number>(0);
@@ -109,3 +109,18 @@ it('Custom Signal get & set works correctly', () => {
   assert.equal(data.pet.name, 'foo');
   assert.equal(petName.peek(), data.pet.name);
 });
+
+
+
+it("Can be lazy", () => {
+  const count = signal<number>(1);
+
+  const timesTwo = lazySignal(0, () => {
+    return count.get() * 2
+  });
+
+  
+  assert.equal(timesTwo.get(), 0);
+  count.set(4);
+  assert.equal(timesTwo.get(), 2*4);
+})

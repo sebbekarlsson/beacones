@@ -1,25 +1,33 @@
-import { EBeaconEvent } from "../beaconEvent";
+import { compare } from "../compare";
 import { EventSystem } from "../eventSystem";
-const createProxyState = (config) => {
-    let parent = { current: null };
-    const events = new EventSystem();
-    const emit = (event) => {
-        events.emit(event);
-        if (parent.current) {
-            parent.current.emit(event);
-        }
+import { reference } from "./reference";
+export var EProxyEvent;
+(function (EProxyEvent) {
+    EProxyEvent["PROP_SET"] = "PROP_SET";
+    EProxyEvent["PROP_DELETE"] = "PROP_DELETE";
+    EProxyEvent["UPDATE"] = "UPDATE";
+})(EProxyEvent || (EProxyEvent = {}));
+export class GlobalProxy {
+}
+GlobalProxy.states = new WeakMap();
+GlobalProxy.proxies = new WeakMap();
+GlobalProxy.stateToProxy = new WeakMap();
+GlobalProxy.stateToObject = new WeakMap();
+const createState = (obj) => {
+    const state = {
+        parent: reference(null),
+        receivers: new Set(),
+        accessedKeys: new Set(),
+        accessedPaths: new Set(),
+        mutatedKeys: new Set(),
+        mutatedPaths: new Set(),
+        events: new EventSystem(),
     };
-    const setParent = (nextParent) => {
-        parent.current = nextParent;
-    };
-    return {
-        events: events,
-        emit: emit,
-        children: [],
-        parent: parent,
-        setParent: setParent,
-        config: config
-    };
+    GlobalProxy.states.set(obj, state);
+    return state;
+};
+const proxyEmit = (state, event) => {
+    state.events.emit(event);
 };
 const isPlainObject = (val) => {
     if (val === null || typeof val !== "object") {
@@ -29,99 +37,75 @@ const isPlainObject = (val) => {
     return proto === Object.prototype || proto === null;
 };
 const canBeProxied = (x) => Array.isArray(x) || isPlainObject(x);
-export class GlobalProxy {
-}
-GlobalProxy.refs = new WeakMap();
-export const createProxyRef = (obj, config = {}) => {
-    const rootState = createProxyState(config);
-    const makeProxy = (obj, ctx) => {
-        const old = GlobalProxy.refs.get(obj);
-        const state = old?.state || createProxyState(config);
-        if (ctx.parent && !ctx.parent.children.includes(state)) {
-            ctx.parent.children.push(state);
-            state.setParent(ctx.parent);
+export const createProxy = (obj) => {
+    const create = (obj, ctx) => {
+        if (!canBeProxied(obj))
+            return obj;
+        if (GlobalProxy.proxies.has(obj)) {
+            return GlobalProxy.proxies.get(obj);
         }
-        const proxy = old?.proxy || new Proxy(obj, {
+        const state = createState(obj);
+        GlobalProxy.states.set(obj, state);
+        if (ctx.parent) {
+            state.parent.value = ctx.parent;
+        }
+        const proxy = new Proxy(obj, {
             get: (target, p, receiver) => {
-                const value = Reflect.get(target, p, receiver);
-                state.emit({
-                    eventType: EBeaconEvent.PROXY_GET_PROP,
-                    crumbs: [...ctx.crumbs, p],
-                    value: value,
-                    depth: ctx.depth,
-                    child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-                });
-                if (canBeProxied(value))
-                    return makeProxy(value, { ...ctx, parent: state, depth: ctx.depth + 1, crumbs: [...ctx.crumbs, p] });
-                return value;
+                const result = Reflect.get(target, p, receiver);
+                if (canBeProxied(result)) {
+                    return create(result, { ...ctx, crumbs: [...ctx.crumbs, p] });
+                }
+                //if (canBeProxied(result) && !GlobalProxy.proxies.has(result)) {
+                //  const proxied = create(result, {...ctx, crumbs: [...ctx.crumbs, p], parent: state });
+                //  Reflect.set(target, p, proxied);
+                //  return proxied;
+                //}
+                return result;
             },
             set: (target, p, newValue, receiver) => {
-                const oldValue = Reflect.get(target, p, receiver);
-                if (oldValue === newValue) {
-                    return Reflect.set(target, p, oldValue, receiver);
+                //const oldValue = Reflect.get(target, p, receiver);
+                //if (compare(oldValue, newValue)) return true;
+                //if (canBeProxied(newValue) && !GlobalProxy.proxies.has(newValue)) {
+                //  newValue = create(newValue, {...ctx, crumbs: [...ctx.crumbs, p], parent: state });
+                //}
+                //
+                const oldValue = Reflect.get(target, p);
+                if (!compare(oldValue, newValue)) {
+                    proxyEmit(state, {
+                        eventType: EProxyEvent.UPDATE,
+                        state: state,
+                        snapshot: target
+                    });
                 }
-                state.emit({
-                    eventType: EBeaconEvent.PROXY_SET_PROP,
-                    crumbs: [...ctx.crumbs, p],
-                    oldValue: oldValue,
-                    value: newValue,
-                    depth: ctx.depth,
-                    child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-                });
-                return Reflect.set(target, p, canBeProxied(newValue)
-                    ? makeProxy(newValue, {
-                        parent: state,
-                        depth: ctx.depth + 1,
-                        crumbs: [...ctx.crumbs, p],
-                    })
-                    : newValue, receiver);
+                return Reflect.set(target, p, newValue, receiver);
             },
             deleteProperty: (target, p) => {
-                if (Reflect.has(target, p)) {
-                    state.emit({
-                        eventType: EBeaconEvent.PROXY_UNSET_PROP,
-                        crumbs: [...ctx.crumbs, p],
-                        oldValue: Reflect.get(target, p),
-                        depth: ctx.depth,
-                        child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-                    });
-                    return Reflect.deleteProperty(target, p);
-                }
-                return false;
+                const result = Reflect.deleteProperty(target, p);
+                return result;
             },
         });
-        if (!old) {
-            const ref = { proxy, state, _proxy_ref: true };
-            GlobalProxy.refs.set(obj, ref);
-            GlobalProxy.refs.set(proxy, ref);
-        }
+        GlobalProxy.states.set(proxy, state);
+        GlobalProxy.proxies.set(obj, proxy);
+        GlobalProxy.stateToProxy.set(state, proxy);
+        GlobalProxy.stateToObject.set(state, obj);
         return proxy;
     };
-    const proxy = makeProxy(obj, { parent: rootState, depth: 0, crumbs: [] });
-    const ref = {
-        proxy: proxy,
-        state: rootState,
-        _proxy_ref: true
-    };
-    GlobalProxy.refs.set(obj, ref);
-    GlobalProxy.refs.set(proxy, ref);
-    return ref;
+    return create(obj, {
+        crumbs: [],
+    });
 };
-export const proxySubscribe = (obj, fn) => {
-    const ref = GlobalProxy.refs.get(obj);
-    if (!ref) {
-        console.warn(`Tried to subscribe to something that was not a proxy.`);
+export const proxySubscribe = (obj, callback) => {
+    const state = GlobalProxy.states.get(obj);
+    if (!state) {
+        console.warn(`Tried to subscribe to a non registered proxy.`);
         return () => { };
     }
-    const cleanups = new Set();
-    cleanups.add(ref.state.events.subscribe(EBeaconEvent.PROXY_SET_PROP, (ev) => {
-        fn(ev.value, ev.oldValue);
-    }));
-    cleanups.add(ref.state.events.subscribe(EBeaconEvent.PROXY_UNSET_PROP, (ev) => {
-        fn(undefined, ev.oldValue);
-    }));
+    const unsub = state.events.subscribe(EProxyEvent.UPDATE, (event) => {
+        //if (old && JSON.stringify(event.snapshot) === JSON.stringify(old)) return;
+        callback(event.snapshot);
+        //old = JSON.parse(JSON.stringify(event.snapshot));
+    });
     return () => {
-        cleanups.forEach((clean) => clean());
-        cleanups.clear();
+        unsub();
     };
 };

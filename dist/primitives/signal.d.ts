@@ -17,6 +17,7 @@ export type Signal<T = any> = Beacon<T> & {
 };
 export type SignalInit<T = any> = Computation<T> | T;
 export declare const signal: <T = any>(init: SignalInit<T>) => Signal<T>;
+export declare const lazySignal: <T = any>(initialValue: T, compute: Computation<T>) => Signal<T>;
 export type CreateSignalInit<T = any> = {
     set: (value: T) => T;
     get: () => T;

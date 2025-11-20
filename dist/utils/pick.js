@@ -31,3 +31,20 @@ export const insert = (obj, path, value) => {
     }
     return copy;
 };
+export const insertReflect = (obj, path, value) => {
+    const copy = { ...obj };
+    const keys = path.split(".");
+    let next = copy;
+    while (keys.length > 0 && !!next) {
+        const key = keys[0];
+        if (!key)
+            break;
+        if (keys.length <= 1) {
+            Reflect.set(next, key, value);
+            break;
+        }
+        keys.splice(0, 1);
+        next = next[key];
+    }
+    return copy;
+};

@@ -218,6 +218,19 @@ export const signal = <T = any>(init: SignalInit<T>): Signal<T> => {
   return sig;
 };
 
+export const lazySignal = <T = any>(
+  initialValue: T,
+  compute: Computation<T>
+): Signal<T> => {
+  const tmp = makeSignal(compute);
+  tmp._init();
+  const sig = makeSignal<T>(compute);
+  sig._assign(initialValue);
+  tmp._deps.forEach(dep => sig._addDependency(dep));
+  tmp._dispose();
+  return sig;
+};
+
 export type CreateSignalInit<T = any> = {
   set: (value: T) => T;
   get: () => T;

@@ -1,56 +1,81 @@
-import { BeaconEventMap, EBeaconEvent } from "../beaconEvent";
+import { compare } from "../compare";
 import { EventSystem } from "../eventSystem";
-import { ValueChangeSubscriptor } from "../functionTypes";
+import { reference, Reference } from "./reference";
 
-type Rec = Record<PropertyKey, any>;
+export enum EProxyEvent {
+  PROP_SET = "PROP_SET",
+  PROP_DELETE = "PROP_DELETE",
+  UPDATE = "UPDATE",
+}
 
-export type ProxyConfig = {}
-
-export type ProxyState<T extends Rec> = {
-  events: EventSystem<BeaconEventMap<T>>;
-  emit: <K extends keyof BeaconEventMap<T>>(
-    event: BeaconEventMap<T>[K],
-  ) => void;
-  children: ProxyState<Rec>[];
-  parent: { current: ProxyState<Rec> | null };
-  setParent: (parent: ProxyState<Rec>) => void;
-  config: ProxyConfig;
+export type ProxyEventMap = {
+  [EProxyEvent.PROP_SET]: {
+    eventType: EProxyEvent.PROP_SET;
+    key: PropertyKey;
+    value: unknown;
+    oldValue: unknown;
+    path: string;
+    state: ProxyState;
+  };
+  [EProxyEvent.PROP_DELETE]: {
+    eventType: EProxyEvent.PROP_DELETE;
+    key: PropertyKey;
+    path: string;
+    state: ProxyState;
+  };
+  [EProxyEvent.UPDATE]: {
+    eventType: EProxyEvent.UPDATE;
+    snapshot: object;
+    state: ProxyState;
+  };
 };
 
+export type ProxyState = {
+  parent: Reference<ProxyState | null>;
 
-export type ProxyRef<T extends Rec> = {
-  proxy: T;
-  state: ProxyState<T>;
-  _proxy_ref: true;
+  receivers: Set<ProxyState>;
+
+  accessedKeys: Set<PropertyKey>;
+  accessedPaths: Set<string>;
+
+  mutatedKeys: Set<PropertyKey>;
+  mutatedPaths: Set<string>;
+
+  events: EventSystem<ProxyEventMap>;
 };
 
-const createProxyState = <T extends Rec>(config: ProxyConfig): ProxyState<T> => {
-  let parent: { current: ProxyState<Rec> | null } = { current: null };
+export class GlobalProxy {
+  static states: WeakMap<object, ProxyState> = new WeakMap();
+  static proxies: WeakMap<object, object> = new WeakMap();
+  static stateToProxy: WeakMap<ProxyState, object> = new WeakMap();
+  static stateToObject: WeakMap<ProxyState, object> = new WeakMap();
+}
 
-  const events = new EventSystem<BeaconEventMap<T>>();
+const createState = <T extends object>(obj: T): ProxyState => {
+  const state: ProxyState = {
+    parent: reference(null),
 
-  const emit = <K extends keyof BeaconEventMap<T>>(
-    event: BeaconEventMap<T>[K],
-  ) => {
-    events.emit(event);
+    receivers: new Set(),
 
-    if (parent.current) {
-      parent.current.emit(event);
-    }
+    accessedKeys: new Set(),
+    accessedPaths: new Set(),
+
+    mutatedKeys: new Set(),
+    mutatedPaths: new Set(),
+
+    events: new EventSystem(),
   };
 
-  const setParent = (nextParent: ProxyState<Rec>) => {
-    parent.current = nextParent;
-  };
+  GlobalProxy.states.set(obj, state);
 
-  return {
-    events: events,
-    emit: emit,
-    children: [],
-    parent: parent,
-    setParent: setParent,
-    config: config
-  };
+  return state;
+};
+
+const proxyEmit = <K extends keyof ProxyEventMap>(
+  state: ProxyState,
+  event: ProxyEventMap[K],
+) => {
+  state.events.emit(event);
 };
 
 const isPlainObject = (val: any): val is object => {
@@ -64,135 +89,104 @@ const isPlainObject = (val: any): val is object => {
 const canBeProxied = (x: any): x is object =>
   Array.isArray(x) || isPlainObject(x);
 
-
-export class GlobalProxy {
-  static refs: WeakMap<Rec, ProxyRef<Rec>> = new WeakMap();
-}
-
-export const createProxyRef = <T extends Rec>(obj: T, config: ProxyConfig = {}): ProxyRef<T> => {
-  const rootState = createProxyState<T>(config);
-
-  const makeProxy = <T extends Rec>(
+export const createProxy = <T extends object>(obj: T): T => {
+  const create = <T extends object>(
     obj: T,
     ctx: {
-      parent?: ProxyState<Rec>;
       crumbs: PropertyKey[];
-      depth: number;
+      parent?: ProxyState;
     },
   ): T => {
-    const old = GlobalProxy.refs.get(obj);
+    if (!canBeProxied(obj)) return obj;
     
-    const state = old?.state || createProxyState<T>(config);
-
-    if (ctx.parent && !ctx.parent.children.includes(state)) {
-      ctx.parent.children.push(state);
-      state.setParent(ctx.parent);
+    if (GlobalProxy.proxies.has(obj)) {
+      return GlobalProxy.proxies.get(obj)! as T;
     }
 
-    const proxy = old?.proxy || new Proxy<T>(obj, {
-      get: (target, p, receiver) => {
-        const value = Reflect.get(target, p, receiver);
+    const state = createState(obj);
+    GlobalProxy.states.set(obj, state);
 
-        state.emit({
-          eventType: EBeaconEvent.PROXY_GET_PROP,
-          crumbs: [...ctx.crumbs, p],
-          value: value,
-          depth: ctx.depth,
-          child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-        });
-
-        if (canBeProxied(value)) return makeProxy(value, { ...ctx, parent: state, depth: ctx.depth + 1, crumbs: [...ctx.crumbs, p] });
-
-        return value;
-      },
-      set: (target, p, newValue, receiver) => {
-        const oldValue = Reflect.get(target, p, receiver);
-
-        if (oldValue === newValue) {
-          return Reflect.set(target, p, oldValue, receiver);
-        }
-
-        state.emit({
-          eventType: EBeaconEvent.PROXY_SET_PROP,
-          crumbs: [...ctx.crumbs, p],
-          oldValue: oldValue,
-          value: newValue,
-          depth: ctx.depth,
-          child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-        });
-
-        return Reflect.set(
-          target,
-          p,
-          canBeProxied(newValue)
-            ? makeProxy(newValue, {
-                parent: state,
-                depth: ctx.depth + 1,
-                crumbs: [...ctx.crumbs, p],
-              })
-            : newValue,
-          receiver,
-        );
-      },
-      deleteProperty: (target, p) => {
-        if (Reflect.has(target, p)) {
-          state.emit({
-            eventType: EBeaconEvent.PROXY_UNSET_PROP,
-            crumbs: [...ctx.crumbs, p],
-            oldValue: Reflect.get(target, p),
-            depth: ctx.depth,
-            child: ctx.parent ? ctx.parent.children.indexOf(state) : -1,
-          });
-          return Reflect.deleteProperty(target, p);
-        }
-        return false;
-      },
-    });
-
-    if (!old) {
-      const ref: ProxyRef<Rec> = { proxy, state, _proxy_ref: true };
-      GlobalProxy.refs.set(obj, ref);
-      GlobalProxy.refs.set(proxy, ref);
+    if (ctx.parent) {
+      state.parent.value = ctx.parent;
     }
+
+    const proxy = new Proxy<T>(
+      obj,
+      {
+        get: (target, p, receiver) => {
+          const result = Reflect.get(target, p, receiver);
+
+          if (canBeProxied(result)) {
+            return create(result, {...ctx, crumbs: [...ctx.crumbs, p ]});
+          }
+          //if (canBeProxied(result) && !GlobalProxy.proxies.has(result)) {
+          //  const proxied = create(result, {...ctx, crumbs: [...ctx.crumbs, p], parent: state });
+          //  Reflect.set(target, p, proxied);
+          //  return proxied;
+          //}
+          
+          return result;
+        },
+        set: (target, p, newValue, receiver) => {
+          //const oldValue = Reflect.get(target, p, receiver);
+          //if (compare(oldValue, newValue)) return true;
+
+          //if (canBeProxied(newValue) && !GlobalProxy.proxies.has(newValue)) {
+          //  newValue = create(newValue, {...ctx, crumbs: [...ctx.crumbs, p], parent: state });
+          //}
+          //
+
+          const oldValue = Reflect.get(target, p);
+          
+
+          if (!compare(oldValue, newValue)) {
+            proxyEmit(state, {
+              eventType: EProxyEvent.UPDATE,
+              state: state,
+              snapshot: target 
+            });
+          }
+          
+          
+          return Reflect.set(target, p, newValue, receiver);
+        },
+        deleteProperty: (target, p) => {
+          const result = Reflect.deleteProperty(target, p);
+          return result;
+        },
+      },
+    );
+
+    GlobalProxy.states.set(proxy, state);
+    GlobalProxy.proxies.set(obj, proxy);
+    GlobalProxy.stateToProxy.set(state, proxy);
+    GlobalProxy.stateToObject.set(state, obj);
 
     return proxy;
   };
 
-  const proxy = makeProxy(obj, { parent: rootState, depth: 0, crumbs: [] });
-
-  const ref: ProxyRef<T> = {
-    proxy: proxy,
-    state: rootState,
-    _proxy_ref: true
-  }
-
-  GlobalProxy.refs.set(obj, ref);
-  GlobalProxy.refs.set(proxy, ref);
-  
-  return ref;
+  return create(obj, {
+    crumbs: [],
+  });
 };
 
-
-export const proxySubscribe = <T extends Rec>(obj: T, fn: ValueChangeSubscriptor<T[keyof T]>): (() => void) => {
-  const ref = GlobalProxy.refs.get(obj);
-  if (!ref) {
-    console.warn(`Tried to subscribe to something that was not a proxy.`);
+export const proxySubscribe = <T extends object>(
+  obj: T,
+  callback: (snapshot: T) => void,
+): (() => void) => {
+  const state = GlobalProxy.states.get(obj);
+  if (!state) {
+    console.warn(`Tried to subscribe to a non registered proxy.`);
     return () => {};
   }
 
-  const cleanups = new Set<() => void>();
-
-  cleanups.add(ref.state.events.subscribe(EBeaconEvent.PROXY_SET_PROP, (ev) => {
-    fn(ev.value as any, ev.oldValue as any);
-  }));
-
-  cleanups.add(ref.state.events.subscribe(EBeaconEvent.PROXY_UNSET_PROP, (ev) => {
-    fn(undefined as any, ev.oldValue as any);
-  }));
-
+  const unsub = state.events.subscribe(EProxyEvent.UPDATE, (event) => {
+    //if (old && JSON.stringify(event.snapshot) === JSON.stringify(old)) return;
+    callback(event.snapshot as T);
+    //old = JSON.parse(JSON.stringify(event.snapshot));
+  });
 
   return () => {
-    cleanups.forEach((clean) => clean());
-    cleanups.clear();
-  }
-}
+    unsub();
+  };
+};
