@@ -1,0 +1,12 @@
+type FilterUndefined<T> = T extends undefined ? never : T;
+type FilterNull<T> = T extends null ? never : T;
+type FilterUndefinedAndNull<T> = FilterUndefined<FilterNull<T>>;
+export type ExtractFromObject<O extends Record<PropertyKey, unknown>, K> = K extends keyof O ? O[K] : K extends keyof FilterUndefinedAndNull<O> ? FilterUndefinedAndNull<O>[K] | undefined : undefined;
+type ExtractFromArray<A extends readonly any[], K> = any[] extends A ? A extends readonly (infer T)[] ? T | undefined : undefined : K extends keyof A ? A[K] : undefined;
+export type GetWithArray<O, K> = K extends [] ? O : K extends [infer Key, ...infer Rest] ? O extends Record<PropertyKey, unknown> ? GetWithArray<ExtractFromObject<O, Key>, Rest> : O extends readonly any[] ? GetWithArray<ExtractFromArray<O, Key>, Rest> : undefined : never;
+export type GetPath<T> = T extends `${infer Key}.${infer Rest}` ? [Key, ...GetPath<Rest>] : T extends `${infer Key}` ? [Key] : [];
+export type Get<O, K> = GetWithArray<O, GetPath<K>>;
+export declare function pick<O, K extends string>(obj: O, path: K, unwrap?: (value: unknown) => any): Get<O, K>;
+export declare const insert: <T extends Record<PropertyKey, any>>(obj: T, path: string, value: any) => T;
+export declare const insertReflect: <T extends Record<PropertyKey, any>>(obj: T, path: string, value: any) => T;
+export {};
