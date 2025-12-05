@@ -2,6 +2,7 @@
   "compilerOptions": {
     "outDir": "./build/main",
     "target": "ES2020",
+    "rootDir": "./src",
     "declaration": true,
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
@@ -12,5 +13,6 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.*"]
 }

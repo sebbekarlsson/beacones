@@ -1,12 +1,12 @@
 {
   "name": "beacones",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "type": "module",
   "main": "./build/main/index.js",
   "types": "./build/main/index.d.ts",
   "scripts": {
     "build:main": "tsc -p ./tsconfig.json",
-    "build:node": "tsc -p ./tsconfig.json --declaration --emitDeclarationOnly --outDir ./build/node && esbuild $(find src \\( -name '*.ts' \\)) --bundle --platform=node --target=esnext --outdir=build/node",
+    "build:node": "tsc -p ./tsconfig.json --declaration --emitDeclarationOnly --outDir ./build/node && esbuild $(find src \\( -name '*.ts' ! -name '*.test.*' \\)) --bundle --platform=neutral --target=esnext --outdir=build/node",
     "build": "npm run build:main && npm run build:node",
     "lint": "prettier ./src --write",
     "test": "npx tsx --test --experimental-test-module-mocks \"./src/**/*.test.ts\" --report-compact --no-warnings",
@@ -16,21 +16,25 @@
   "license": "ISC",
   "description": "",
   "exports": {
+    "./package.json": "./package.json",
     ".": {
       "import": {
         "types": "./build/main/index.d.ts",
         "default": "./build/main/index.js"
       },
       "require": {
-        "types": "./build/node/index.d.ts",
-        "default": "./build/node/index.js"
+        "types": "./build/main/index.d.ts",
+        "default": "./build/main/index.js"
       },
       "default": {
         "types": "./build/main/index.d.ts",
         "default": "./build/main/index.js"
       }
     }
-  }, 
+  },
+  "files": [
+    "build"
+  ],
   "prettier": {
     "plugins": [
       "prettier-plugin-organize-imports"
