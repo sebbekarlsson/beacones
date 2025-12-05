@@ -1,7 +1,6 @@
 {
   "name": "beacones",
-  "version": "1.0.8",
-  "type": "module",
+  "version": "1.0.9",
   "module": "./build/node/index.js",
   "main": "./build/main/index.js",
   "types": "./build/main/index.d.ts",
