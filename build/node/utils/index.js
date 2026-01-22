@@ -547,11 +547,20 @@ var drill = (initialState) => {
     selectRemapped
   };
 };
+
+// src/utils/withExtraDeps.ts
+var withExtraDeps = (sig, deps) => {
+  deps.forEach((dep) => {
+    sig._addDependency(dep);
+  });
+  return sig;
+};
 export {
   applyPatches,
   createPatches,
   drill,
   insert,
   insertReflect,
-  pick
+  pick,
+  withExtraDeps
 };

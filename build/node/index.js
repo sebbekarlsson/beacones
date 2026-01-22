@@ -776,6 +776,14 @@ var drill = (initialState) => {
     selectRemapped
   };
 };
+
+// src/utils/withExtraDeps.ts
+var withExtraDeps = (sig, deps) => {
+  deps.forEach((dep) => {
+    sig._addDependency(dep);
+  });
+  return sig;
+};
 export {
   BeaconScope,
   EBeaconEvent,
@@ -803,5 +811,6 @@ export {
   signal,
   traverseNestedSignals,
   unref,
-  unwrapNestedSignals
+  unwrapNestedSignals,
+  withExtraDeps
 };
